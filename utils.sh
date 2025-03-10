@@ -18,6 +18,7 @@ red() {
   echo -e "${RED}$1${RESET}"
 }
 installpath="$HOME"
+baseurl="https://ss.fkj.pp.ua"
 
 checknezhaAgentAlive() {
   if ps aux | grep nezha-agent | grep -v "grep" >/dev/null; then
@@ -187,7 +188,7 @@ get_webip() {
   # 遍历主机名称数组
   for host in "${hosts[@]}"; do
     # 获取 API 返回的数据
-    local response=$(curl -s "https://ss.serv0.us.kg/api/getip?host=$host")
+    local response=$(curl -s "${baseurl}/api/getip?host=$host")
 
     # 检查返回的结果是否包含 "not found"
     if [[ "$response" =~ "not found" ]]; then
@@ -227,7 +228,7 @@ get_ip() {
   # 遍历主机名称数组
   for host in "${hosts[@]}"; do
     # 获取 API 返回的数据
-    local response=$(curl -s "https://ss.serv0.us.kg/api/getip?host=$host")
+    local response=$(curl -s "${baseurl}/api/getip?host=$host")
 
     # 检查返回的结果是否包含 "not found"
     if [[ "$response" =~ "not found" ]]; then
@@ -525,11 +526,50 @@ delete_all_domains() {
   done
 }
 
+download_from_net() {
+  local app=$1
+
+  case $app in
+  "alist")
+    download_from_github_release "AlistGo" "alist" "alist-freebsd-amd64.tar.gz"
+    ;;
+
+  esac
+}
+
+check_update_from_net() {
+  local app=$1
+
+  case $app in
+  "alist")
+    local current_version=$(./alist version | grep "Version: v" | awk '{print $2}')
+    if ! check_from_github "AlistGo" "alist" "$current_version"; then
+      echo "未发现新版本!"
+      return 1
+    fi
+    download_from_github_release "AlistGo" "alist" "alist-freebsd-amd64.tar.gz"
+    ;;
+  esac
+}
+
+check_from_github() {
+  local user=$1
+  local repository=$2
+  local local_version="$3"
+
+  latest_version=$(curl -sL https://github.com/${user}/${repository}/releases/latest | sed -n 's/.*tag\/\(v[0-9.]*\).*/\1/p' | head -1)
+
+  if [[ "$local_version" != "$latest_version" ]]; then
+    echo "发现新版本: $latest_version，当前版本: $local_version, 正在更新..."
+    return 0
+  fi
+  return 1
+}
+
 download_from_github_release() {
   local user=$1
   local repository=$2
-  local package=$3
-  local zippackage="$package.zip"
+  local zippackage="$3"
 
   local url="https://github.com/${user}/${repository}"
   local latestUrl="$url/releases/latest"
@@ -543,11 +583,33 @@ download_from_github_release() {
     return 1
   fi
   # 原地解压缩
-  unzip -o "$zippackage" -d .
+  case "$zippackage" in
+  *.zip)
+    unzip -o "$zippackage" -d .
+    ;;
+  *.tar.gz | *.tgz)
+    tar -xzf "$zippackage"
+    ;;
+  *.tar.bz2 | *.tbz2)
+    tar -xjf "$zippackage"
+    ;;
+  *.tar.xz | *.txz)
+    tar -xJf "$zippackage"
+    ;;
+  *.tar)
+    tar -xf "$zippackage"
+    ;;
+  *)
+    echo "不支持的文件格式: $zippackage"
+    return 1
+    ;;
+  esac
+
   if [[ $? -ne 0 ]]; then
     echo "解压 $zippackage 文件失败!"
     return 1
   fi
+
   rm -rf "$zippackage"
   echo "下载并解压 $zippackage 成功!"
   return 0
@@ -604,7 +666,7 @@ show_ip_status() {
   for host in "${hosts[@]}"; do
     ((i++))
     # 获取 API 返回的数据
-    local response=$(curl -s "https://ss.serv0.us.kg/api/getip?host=$host")
+    local response=$(curl -s "${baseurl}/api/getip?host=$host")
 
     # 检查返回的结果是否包含 "not found"
     if [[ "$response" =~ "not found" ]]; then
